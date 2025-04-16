@@ -120,7 +120,8 @@ class HARProcessor():
                 action = torch.argmax(self.scores).item()
                 self.action = self.trigHL(action)
                 self.confidence = confidence
-                self.on_action_detected(self.action, self.confidence)
+                if self.on_action_detected is not None:
+                    self.on_action_detected(self.action, self.confidence)
             else:
                 self.action = 0
                 self.confidence = 0.

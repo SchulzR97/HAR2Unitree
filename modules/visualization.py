@@ -2,8 +2,57 @@ import numpy as np
 import cv2 as cv
 import rsp.common.drawing as drawing
 import rsp.common.color as colors
+from rsp.userinterface import Window, Button
+from threading import Thread
+import time
 
-class HAR2UnitreeUI():
+class Robot_UI(Window):
+    def __init__(
+        self,
+        win_name:str,
+        func_move_foward:callable,
+        func_turn:callable,
+        func_joy:callable,
+        func_stand_up:callable,
+        func_damping:callable,
+        size = (500, 300)
+    ):
+        super().__init__(win_name, size)
+
+        self.func_move_foward = func_move_foward
+        self.func_turn = func_turn
+        # self.func_joy = func_joy
+        # self.func_stand_up = func_stand_up
+        # self.func_damping = func_damping
+
+        self.ui_elements = {
+            'btn_forward': Button('forward', 45, 10, w=70),#, on_left_button_clicked=lambda: func_move_foward()),
+            'btn_turn_left': Button('<', 10, 10, w=30),#, on_left_button_clicked=self.__on_btn_turn_left__),
+            'btn_turn_right': Button('>', 120, 10, w=30),#, on_left_button_clicked=self.__on_btn_turn_right__),
+            'btn_joy': Button('Process joy', 10, 40, w=150, on_left_button_clicked=lambda: func_joy()),
+            'btn_stand_up': Button('Process stand up', 10, 70, w=150, on_left_button_clicked=lambda: func_stand_up()),
+            'btn_damping': Button('Process damping', 10, 100, w=150, on_left_button_clicked=lambda: func_damping()),
+        }
+
+        for ui_element in self.ui_elements.values():
+            self.__ui_elements__.append(ui_element)
+
+        Thread(target=self.__thread_cycle__).start()
+
+    def __thread_cycle__(self):
+        while True:
+            if self.ui_elements['btn_turn_left'].is_checked:
+                self.func_turn(2)
+                print('Turn left')
+            if self.ui_elements['btn_turn_right'].is_checked:
+                self.func_turn(-2)
+                print('Turn right')
+            if self.ui_elements['btn_forward'].is_checked:
+                self.func_move_foward()
+                print('Move forward')
+            time.sleep(0.2)
+
+class HAR_UI():
     def __init__(
             self,
             action_labels
@@ -89,3 +138,13 @@ class HAR2UnitreeUI():
             
         return img
         pass
+
+if __name__ == '__main__':
+    robot_ui = Robot_UI(
+        win_name='Robot UI',
+        func_turn=lambda angle: None,#print(f'Turn {angle:0.2f}'),
+        func_joy=lambda: None#print(f'Joy')
+    )
+
+    while True:
+        robot_ui.__render__()
