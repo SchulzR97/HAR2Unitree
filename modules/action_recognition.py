@@ -4,7 +4,9 @@ import cv2 as cv
 from threading import Thread
 from datetime import datetime
 from rsp.ml.model import load_model
+import rsp.common.console as console
 import time
+import matplotlib.pyplot as plt
 from collections import deque
 
 class TriggerHL():
@@ -20,12 +22,14 @@ class TriggerHL():
     def __call__(self, action:int):
         if action == self.last_action:
             self.cnt += 1
-
-        self.last_action = action
+        else:
+            self.cnt = 0
 
         if self.cnt >= self.delay:
             self.active_action = action
-            self.cnt = 0
+
+        self.last_action = action
+
         return self.active_action
 
 class HARProcessor():
@@ -39,7 +43,8 @@ class HARProcessor():
             target_framerate:int = 30,
             k:int = 1,
             on_action_detected:callable = None,
-            min_confidence:float = 0.5
+            min_confidence:float = 0.5,
+            buffer_size:int = 20
     ):
         self.use_depth_channel = use_depth_channel
         self.input_size = input_size
@@ -48,10 +53,13 @@ class HARProcessor():
         self.k = k
         self.on_action_detected = on_action_detected
         self.min_confidence = min_confidence
+        self.buffer_size = buffer_size
+        self.batch_size = batch_size
+        self.sequence_length = sequence_length
 
-        self.trigHL = TriggerHL(2)
+        self.framerates = []
 
-        self.X = torch.zeros((batch_size, sequence_length, 4 if use_depth_channel else 3, input_size[0], input_size[1]), dtype=torch.float32)
+        self.trigHL = TriggerHL(2)#2
 
         if torch.cuda.is_available():
             self.device = 'cuda'
@@ -59,6 +67,7 @@ class HARProcessor():
             self.device = 'mps'
         else:
             self.device = 'cpu'
+            console.warn('Using CPU for inference. This may be slow.')
 
         self.model = load_model(
             user_id='SchulzR97',
@@ -66,8 +75,8 @@ class HARProcessor():
             weights_id='TUC-HRI-LAB'
         )
         #self.model = torch.jit.load('model/MSCONV3Ds/TUC-HRI-LAB.pth')
-        self.model.eval()
         self.model.to(self.device)
+        self.model.eval()        
 
         self.buffer = []
         self.i = 0
@@ -85,9 +94,14 @@ class HARProcessor():
 
         self.__thread__ = Thread(target=self.__thread_cycle__)
         self.__thread__.start()
-        pass
+        
+        self.__reset__()
+
+    def __reset__(self):
+        self.X = torch.zeros((self.batch_size, self.sequence_length, 4 if self.use_depth_channel else 3, self.input_size[0], self.input_size[1]), dtype=torch.float32)
 
     def predict(self):
+        self.model.eval()
         with torch.no_grad():
             self.X = self.X.to(self.device)
             pred = self.model(self.X).detach().cpu()
@@ -96,13 +110,13 @@ class HARProcessor():
             pred_decay = pred * decay.unsqueeze(1)
 
             action_rebalance = torch.tensor([
-                1.3, # None
+                0.9, # None
                 0.9, # Waving
-                1.5, # Pointing
+                2.0, # Pointing
                 1.1, # Clapping
-                0.8, # Follow
+                0.3, # Follow
                 1.0, # Walking
-                2.7, # Stop
+                3.0, # Stop
                 1.3, # Turn
                 1.0, # Jumping
                 1.1, # Come here
@@ -110,42 +124,21 @@ class HARProcessor():
             ], dtype=torch.float32)
             pred_decay = pred_decay * action_rebalance
 
-            #self.scores = torch.sum(pred_decay, dim=0) / torch.sum(pred_decay)
-            self.scores = torch.nn.functional.softmax(pred_decay.sum(dim=0), dim=0)
+            self.scores = torch.sum(pred_decay, dim=0) / torch.sum(pred_decay)
+            #self.scores = torch.nn.functional.softmax(pred_decay.sum(dim=0), dim=0)
             
             confidence = torch.max(self.scores).item()
+
             self.detected = confidence >= self.min_confidence
 
             if self.detected:
+                self.confidence = confidence
                 action = torch.argmax(self.scores).item()
                 self.action = self.trigHL(action)
-                self.confidence = confidence
                 if self.on_action_detected is not None:
                     self.on_action_detected(self.action, self.confidence)
             else:
-                self.action = 0
-                self.confidence = 0.
-
-            # self.action = torch.argmax(scores).item()
-            # self.confidence = torch.max(scores).item()
-            # self.detected = self.confidence >= self.min_confidence
-            # if self.detected:
-            #     self.on_action_detected(self.action, self.confidence)
-            # else:
-            #     self.action = 0
-            #     self.confidence = 0.
-
-
-            # action = torch.argmax(scores, dim=1)
-            # confidence, _ = torch.max(scores, dim=1)
-
-            # actions, cnt = torch.unique(action, return_counts=True)
-            # scores = cnt / torch.sum(cnt)
-
-            # i = torch.argmax(scores)
-            # self.action = actions[i].item()
-            # self.confidence = scores[i].item()
-            # self.detected = self.confidence >= self.min_confidence
+                self.confidence = confidence
 
     def __thread_cycle__(self):
         while True:
@@ -189,10 +182,17 @@ class HARProcessor():
         while time.time() - self.last_frame_time < 1 / self.target_framerate:
             time.sleep(0.001)
 
+        self.framerates.append(1 / (time.time() - self.last_frame_time))
+
         new_framerate = 1 / (time.time() - self.last_frame_time)
         self.framerate += 5e-1 * (new_framerate - self.framerate)
 
         self.buffer.append(frame)
         self.last_frame_time = time.time()
 
-        assert len(self.buffer) <= 20, f'Buffer size exceeded: {len(self.buffer)} > 20'
+        # if len(self.framerates) % 10 == 0:
+        #     plt.plot(self.framerates)
+        #     plt.savefig('framerates.png')
+        #     plt.close()
+
+        assert len(self.buffer) <= self.buffer_size, f'Buffer size exceeded: {len(self.buffer)} > {self.buffer_size}'

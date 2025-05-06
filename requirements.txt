@@ -1,3 +1,5 @@
 rsp-userinterface>=0.0.29
 rsp-ml
 torch
+torchreid
+ultralytics

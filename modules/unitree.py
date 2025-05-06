@@ -2,6 +2,7 @@ import sys
 import time
 import math
 from threading import Thread
+from modules.stats import RobotState
 
 sys.path.append('/home/schulzr/GIT/unitree_legged_sdk/lib/python/amd64')
 import robot_interface as sdk
@@ -52,6 +53,12 @@ class SpeedLevel():
     default_low_speed = 0
     default_medium_speed = 1
     default_high_speed = 2
+
+class LowCmd(sdk.LowCmd):
+    def __init__(
+            self
+    ):
+        super().__init__()
 
 class HighCmd(sdk.HighCmd):
     def __init__(
@@ -131,7 +138,7 @@ class LevelFlag():
 
 class HighState(sdk.HighState):
     def __init__(self):
-        pass
+        super().__init__()
 
 class UnitreeGo1():
     def __init__(
@@ -152,96 +159,148 @@ class UnitreeGo1():
         server_port : int, default 8007
             Port of the server
         """
-        self.udp = sdk.UDP(LevelFlag.HIGHLEVEL, client_port, server_ip, server_port)
+        self.client_port = client_port
+        self.server_ip = server_ip
+        self.server_port = server_port
+        self.udp_high_level = sdk.UDP(LevelFlag.HIGHLEVEL, client_port, server_ip, server_port)
+        self.udp_low_level = sdk.UDP(LevelFlag.LOWLEVEL, 8007, server_ip, server_port)
         self.progress = None
+        self.state = RobotState.DAMPING
 
-    def process_joy(self):
+        self.__command_level__ = LevelFlag.HIGHLEVEL
+        self.__next_turn_direction__ = 1
+
+    def joy(self):
         if self.progress is not None:
             return
         self.progress = 0.
+        self.state = RobotState.JOY
         num = 5
         for i in range(num):
             cmd = HighCmd(mode = Mode.standing_in_force_control, euler=[-0., -0.3, 0])
             self.send_HighCmd(cmd)
             time.sleep(0.5)
 
-            # cmd = HighCmd(mode = Mode.standing_in_force_control, euler=[0.2, -0.3, 0])
-            # self.send_HighCmd(cmd)
-            # time.sleep(0.5)
+            self.progress = (2*i+1) / (2 * num)
 
             cmd = HighCmd(mode = Mode.standing_in_force_control, euler=[0., 0.3, 0])
             self.send_HighCmd(cmd)
             time.sleep(0.5)
-            self.progress = (i+1) / num
+            self.progress = (2*i+2) / (2 * num)
         self.progress = None
+        self.state = RobotState.IDLE
     
-    def process_stand_up(self):
+    def stand_up(self):
         """mode7 -> mode5 -> mode6
         """
         if self.progress is not None:
             return
-        self.progress = 0.5
+        self.progress = 0.
+        self.state = RobotState.STAND_UP
         cmd = HighCmd(mode = Mode.stand_up_in_position_control)
         self.send_HighCmd(cmd)
-        time.sleep(1.0)
+        for i in range(20):
+            self.progress = (i+1) / 20
+            time.sleep(0.1)
         self.progress = None
+        self.state = RobotState.IDLE
 
-    def process_damp_all_motors(self):
+    def jump(self):
         if self.progress is not None:
             return
         self.progress = 0.
+        self.state = RobotState.JUMPING
+        num = 2
+        for i in range(num):
+            cmd = HighCmd(mode = Mode.stand_down_in_position_control, bodyHeight=0.28)
+            self.send_HighCmd(cmd)
+            time.sleep(0.5)
+
+            cmd = HighCmd(mode = Mode.stand_up_in_position_control, bodyHeight=0.4)
+            self.send_HighCmd(cmd)
+            time.sleep(0.5)
+
+            self.progress = (i+1) / (num)
+
+            # cmd = HighCmd(mode = Mode.standing_in_force_control, euler=[0., 0.3, 0])
+            # self.send_HighCmd(cmd)
+            # time.sleep(0.5)
+            # self.progress = (2*i+2) / (2 * num)
+        self.progress = None
+        self.state = RobotState.IDLE
+
+    def damp_all_motors(self):
+        if self.progress is not None:
+            return
+        self.progress = 0.
+        self.state = RobotState.DAMPING
         cmd = HighCmd(mode = Mode.stand_down_in_position_control)
         self.send_HighCmd(cmd)
-        for i in range(5):
+        for i in range(4):
             time.sleep(0.2)
-            self.progress = (i+1) / 5
+            self.progress = (i+1) / 6
         cmd = HighCmd(mode = Mode.damping_mode_all_motors)
         self.send_HighCmd(cmd)
-        for i in range(10):
+        for i in range(5, 6):
             time.sleep(0.5)
-            self.progress = 1 + (i+1) / 10
+            self.progress = ((i+1)) / 6
         self.progress = None
+        self.state = RobotState.DAMPING
 
     def dance1(self):
         if self.progress is not None:
             return
         self.progress = 0.
+        self.state = RobotState.DANCING
+
+        cmd = HighCmd(mode = Mode.walking_following_target_velocity)
+        self.send_HighCmd(cmd)
+        time.sleep(0.5)
+
         cmd = HighCmd(mode = Mode.dance1)
         
         self.send_HighCmd(cmd)
         seconds = 17
         for i in range(seconds * 2):
             time.sleep(0.5)
-            self.prog = (i + 1) / (seconds * 2)
+            self.progress = (i + 1) / (seconds * 2)
         self.progress = None
+        self.state = RobotState.IDLE
 
     def dance2(self):
         if self.progress is not None:
             return
         self.progress = 0.
+        self.state = RobotState.DANCING
         cmd = HighCmd(mode = Mode.dance1)
         
         self.send_HighCmd(cmd)
         seconds = 37
         for i in range(seconds * 2):
             time.sleep(0.5)
-            self.prog = (i + 1) / (seconds * 2)
+            self.progress = (i + 1) / (seconds * 2)
         self.progress = None
+        self.state = RobotState.IDLE
 
-    def turn(self, angle_deg):
+    def turn360(self):
+        self.turn(self.__next_turn_direction__ * 360 * 1.05, 1.5)
+        self.__next_turn_direction__ = -self.__next_turn_direction__
+
+    def turn(self, angle_deg, angular_velocity = 0.25):
         if self.progress is not None:
             return
         self.progress = 0.
-        angular_velocity = 0.25#0.3
+        self.state = RobotState.TURNING
         angle_rad = math.radians(angle_deg)
-        time_required = abs(angle_rad / angular_velocity)
+        time_required = abs(angle_rad / angular_velocity) #* 1.1
         
         cmd = HighCmd(
             mode = Mode.walking_following_target_velocity,
             gait_type = GaitType.idle,
             speed_level = SpeedLevel.default_low_speed,
             yawSpeed = angular_velocity if angle_rad > 0 else -angular_velocity,
-            velocity=[0.05, 0.03]
+            #velocity=[0.05, 0.03]
+            velocity=[0.0, 0.0]
         )
 
         start_time = time.time()
@@ -250,34 +309,112 @@ class UnitreeGo1():
             time.sleep(0.01)
             self.progress = (time.time() - start_time) / time_required
         self.progress = None
+        self.state = RobotState.IDLE
 
-    def move_forward(self):
+    def move_forward(self, distance = 0.2):
         if self.progress is not None:
             return
         self.progress = 0
+        self.state = RobotState.MOVE_FORWARD
+
+        n = int(distance / 0.2)
+        n = min([1, n])
+
         cmd = HighCmd(
             mode = Mode.walking_following_target_velocity,
             gait_type = GaitType.trot_walking,
             speed_level = SpeedLevel.default_low_speed,
-            velocity = [0.2, 0.],
+            velocity = [0.2, 0.02],
             euler=[0., 0., 0.]
         )
-        self.send_HighCmd(cmd)
-        time.sleep(1.)
+        for i in range(n):
+            self.send_HighCmd(cmd)
+            for j in range(10):
+                self.progress = ((i+1) * 10  + j / 10) / (n * 10)
+                time.sleep(0.1)
         self.progress = None
+        self.state = RobotState.IDLE
+
+    def move_backward(self, distance = 0.2):
+        if self.progress is not None:
+            return
+        self.progress = 0
+        self.state = RobotState.MOVE_BACKWARD
+
+        n = int(distance / 0.2)
+        n = min([1, n])
+
+        cmd = HighCmd(
+            mode = Mode.walking_following_target_velocity,
+            gait_type = GaitType.trot_walking,
+            speed_level = SpeedLevel.default_low_speed,
+            velocity = [-0.2, 0.],
+            euler=[0., 0., 0.]
+        )
+        for i in range(n):
+            self.send_HighCmd(cmd)
+            for j in range(10):
+                self.progress = ((i+1) * 10  + j / 10) / (n * 10)
+                time.sleep(0.1)
+        self.progress = None
+        self.state = RobotState.IDLE
 
     def process_async(self, target, args):
         Thread(target=target, args=args).start()
 
     def send_HighCmd(self, cmd:HighCmd):
-        self.udp.InitCmdData(cmd)
+        if self.__command_level__ != LevelFlag.HIGHLEVEL:
+            raise ValueError("Command level is not HIGHLEVEL")
+        
+        self.udp_high_level.InitCmdData(cmd)
 
         state_base = sdk.HighState()
-        recv = self.udp.Recv()
-        get_recv = self.udp.GetRecv(state_base)
+        recv = self.udp_high_level.Recv()
+        get_recv = self.udp_high_level.GetRecv(state_base)
 
-        self.udp.SetSend(cmd)
-        send = self.udp.Send()
+        self.udp_high_level.SetSend(cmd)
+        send = self.udp_high_level.Send()
 
         if send != 129:
             pass
+
+    def send_LowCmd(self, cmd:LowCmd):
+        if self.__command_level__ != LevelFlag.LOWLEVEL:
+            raise ValueError("Command level is not LOWLEVEL")
+        
+        self.udp_low_level.InitCmdData(cmd)
+
+        state_base = sdk.LowState()
+        recv = self.udp_low_level.Recv()
+        get_recv = self.udp_low_level.GetRecv(state_base)
+
+        self.udp_low_level.SetSend(cmd)
+        send = self.udp_low_level.Send()
+
+        if send != 129:
+            pass
+
+    def switch_command_level(self, level:LevelFlag):
+        cmd = HighCmd()
+        cmd.mode = level
+
+        self.progress = 0.
+
+        for i in range(100):
+            self.udp_high_level.InitCmdData(cmd)
+
+            state_base = sdk.HighState()
+            recv = self.udp_high_level.Recv()
+            get_recv = self.udp_high_level.GetRecv(state_base)
+
+            self.udp_high_level.SetSend(cmd)
+            send = self.udp_high_level.Send()
+
+            if send != 129:
+                pass
+
+            time.sleep(0.01)
+            self.progress = (i+1) / 100
+
+        self.progress = None
+        self.__command_level__ = level
