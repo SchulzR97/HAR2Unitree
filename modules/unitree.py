@@ -4,7 +4,7 @@ import math
 from threading import Thread
 from modules.stats import RobotState
 
-sys.path.append('/home/schulzr/GIT/unitree_legged_sdk/lib/python/amd64')
+sys.path.append('/home/messe/Documents/GIT/unitree_legged_sdk/lib/python/amd64')
 import robot_interface as sdk
 
 class Mode():

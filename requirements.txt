@@ -3,3 +3,5 @@ rsp-ml
 torch
 torchreid
 ultralytics
+tensorboard
+pyrealsense2
