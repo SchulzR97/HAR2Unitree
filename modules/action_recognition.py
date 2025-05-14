@@ -114,9 +114,9 @@ class HARProcessor():
                 0.9, # Waving
                 2.0, # Pointing
                 1.1, # Clapping
-                0.3, # Follow
+                0.2, # Follow
                 1.0, # Walking
-                3.0, # Stop
+                3.5, # Stop
                 1.3, # Turn
                 1.0, # Jumping
                 1.1, # Come here

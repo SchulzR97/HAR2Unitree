@@ -4,7 +4,8 @@ import math
 from threading import Thread
 from modules.stats import RobotState
 
-sys.path.append('/home/messe/Documents/GIT/unitree_legged_sdk/lib/python/amd64')
+ROBOT_INTERFACE_DIR = '/home/chban/HAR2Unitree/unitree_legged_sdk/lib/python/amd64/'
+sys.path.append(ROBOT_INTERFACE_DIR)
 import robot_interface as sdk
 
 class Mode():
@@ -250,6 +251,7 @@ class UnitreeGo1():
     def dance1(self):
         if self.progress is not None:
             return
+        print('dance1')
         self.progress = 0.
         self.state = RobotState.DANCING
 
@@ -262,6 +264,7 @@ class UnitreeGo1():
         self.send_HighCmd(cmd)
         seconds = 17
         for i in range(seconds * 2):
+            self.send_HighCmd(cmd)
             time.sleep(0.5)
             self.progress = (i + 1) / (seconds * 2)
         self.progress = None
@@ -270,13 +273,15 @@ class UnitreeGo1():
     def dance2(self):
         if self.progress is not None:
             return
+        print('dance2')
         self.progress = 0.
         self.state = RobotState.DANCING
-        cmd = HighCmd(mode = Mode.dance1)
+        cmd = HighCmd(mode = Mode.dance2)
         
         self.send_HighCmd(cmd)
         seconds = 37
         for i in range(seconds * 2):
+            self.send_HighCmd(cmd)
             time.sleep(0.5)
             self.progress = (i + 1) / (seconds * 2)
         self.progress = None
