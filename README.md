@@ -18,7 +18,7 @@ _Robert Schulz, Chaitanya Bandi, Ulrike Thomas_
 # 1 Introduction
 This repository contains source code is the official implementation of [1]. Please refer to this publication when using parts of this work.
 
-Here, we provide a comprehensive framework to interact with the quadruped robot Unitree Go1 Edu via action gestures performed by a human subject. Therefore, this repository combines the following components to form fully functional human robot interaction environment:
+Here, we provide a comprehensive framework to interact with the quadruped robot Unitree Go1 Edu via action gestures performed by a human subject. Therefore, this repository combines the following components to form a fully functional human robot interaction environment:
 1. **TUC-HRI**, a novel RGB dataset specifically designed for HRI applications. TUC-HRI features simultaneous multi-view recordings from three depth cameras, providing diverse perspectives to improve model generalization. To ensure consistency and robustness, all backgrounds are completely removed, allowing models to focus solely on human motion.
 2. **MSCONV3D**, a multistage 3D convolution-based model that achieves 97.59% accuracy on TUC-HRI for random validation and 88.67% for cross-subject validation, demonstrating its effectiveness for HAR in controlled HRI settings. 
 3. Additionally, we introduce a simple yet effective **person re-identification algorithm** for stable tracking in multi-person scenarios.
@@ -26,9 +26,9 @@ Here, we provide a comprehensive framework to interact with the quadruped robot 
 Together, **TUC-HRI**, **MSCONV3D**, and the **re-identification approach** form a comprehensive framework that advances HAR research, with a strong emphasis on dataset quality and real-world applicability for HRI.
 
 The code and dataset are available at:
-- TUC-HRI: https://github.com/SchulzR97/TUC-HRI
-- MSCONV3D: https://github.com/SchulzR97/MSCONV3D
-- Framework (this): https://github.com/SchulzR97/HAR2Unitree.
+- Dataset - TUC-HRI: https://github.com/SchulzR97/TUC-HRI
+- HAR Model - MSCONV3D: https://github.com/SchulzR97/MSCONV3D
+- Framework - HAR2Unitree **(this)**: https://github.com/SchulzR97/HAR2Unitree
 
 # 2 Framework
 ![](image/framework.png)
