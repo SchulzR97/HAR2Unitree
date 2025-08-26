@@ -99,5 +99,3 @@ $ sudo apt-get install python3-opencv
     sudo udevadm trigger
     ```
 
-# References
-[1] R. Schulz, C. Bandi, U. Thomas, "MSCONV3D and TUC-HRI: A comprehensive framework for Human-Robot Interaction," 2025 34rd IEEE International Conference on Robot and Human Interactive Communication (ROMAN), 2025
